@@ -1,0 +1,18 @@
+{
+  "name": "agentos-backend",
+  "version": "1.0.0",
+  "description": "AgentOS Server - Machine-to-Machine Agent Auth, 1SecMail Ingestion & Playwright Automation",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.42.1"
+  }
+}
