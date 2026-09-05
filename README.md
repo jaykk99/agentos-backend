@@ -65,3 +65,18 @@ invalidates every outstanding key.
 to the instance that handled it and to warm instances only. Durable revocation
 needs a shared store (Redis/Postgres); until then, rotate
 `AGENTOS_SIGNING_SECRET` to invalidate all keys at once.
+
+## SSRF protection on targetUrl
+
+`/api/v1/recon/scan` and `/api/v1/browser/execute` both take a caller-supplied
+`targetUrl` and make a server-side request to it. Both now resolve the hostname
+and reject anything that isn't a public IP (loopback, RFC1918 private ranges,
+link-local/metadata addresses like `169.254.169.254`, and `localhost`) before
+making the request, returning `400 Validation Error` instead. Without this an
+authenticated agent could point either endpoint at this backend's own internal
+network or a cloud metadata endpoint and read the response back through
+`statusCode`/headers. This is a hostname-based check (DNS lookup at validation
+time, not pinned to the fetch itself), so it does not defend against a
+DNS-rebinding attacker who can flip a domain's resolution between the check and
+the request a moment later — closing that fully requires pinning the resolved
+IP for the actual request, which is not implemented here.
