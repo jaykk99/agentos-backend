@@ -3,14 +3,21 @@
   "version": "1.0.0",
   "description": "AgentOS Server - Machine-to-Machine Agent Auth, 1SecMail Ingestion & Playwright Automation",
   "main": "api/index.js",
+  "bin": {
+    "agentos-mcp": "bin/mcp-stdio.js"
+  },
   "scripts": {
     "start": "node api/index.js",
-    "dev": "node api/index.js"
+    "dev": "node api/index.js",
+    "mcp": "node bin/mcp-stdio.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@supabase/supabase-js": "^2.115.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "zod": "^4.0.0"
   },
   "optionalDependencies": {
     "playwright": "^1.42.1"
