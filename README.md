@@ -8,8 +8,10 @@ plain REST API or as an MCP server.
 - Machine-to-Machine Agent Auth (Token Generation & Revocation)
 - Agent CRUD Directory (Signup, Signin, Verify, Connect, Platforms, List, Revoke)
 - Shared Supabase-backed persistence (falls back to in-memory for local dev)
-- The same identity operations exposed three ways: REST, an action-style
-  bridge (for error-inbox's existing client), and MCP (stdio or HTTP)
+- Real web browsing (plain fetch + HTML-to-text) and search (DuckDuckGo HTML,
+  no API key needed) for agents
+- The same operations exposed three ways: REST, an action-style bridge (for
+  error-inbox's existing client), and MCP (stdio or HTTP)
 - Target Site Pre-Flight Recon Scanner, Playwright Headless Browser Worker,
   1SecMail Ingestion (legacy — see note below)
 
@@ -32,6 +34,8 @@ directory. Without those set, identities only live in that instance's memory.
 - `POST /api/v1/agents/platforms` - List an agent's connected apps `{ apiKey }`
 - `GET /api/v1/agents` - List all agents
 - `DELETE /api/v1/agents/:agentId` - Revoke agent
+- `POST /api/v1/browse` - Fetch a URL, return title + readable text `{ url }`
+- `POST /api/v1/search` - Web search, no API key needed `{ query, limit? }`
 - `POST /api/v1/recon/scan` - Scan target site (requires auth)
 - `POST /api/v1/browser/execute` - Headless browser execution (requires auth)
 - `GET/POST /api/v1/settings` - Global settings
@@ -45,7 +49,7 @@ is what error-inbox's `lib/agentos.ts` speaks — point its `AGENTOS_URL` at
 ## MCP
 
 Tools: `agent_signup`, `agent_signin`, `agent_verify`, `agent_connect_app`,
-`agent_platforms`, `agent_list`, `agent_revoke`.
+`agent_platforms`, `agent_list`, `agent_revoke`, `agent_browse`, `agent_search`.
 
 **Remote (HTTP)** — add this deployment directly as a remote MCP server:
 ```
