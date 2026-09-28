@@ -1,51 +1,56 @@
 # AgentOS Backend
 
-Autonomous agent identity + real browser/email automation, served as a standard **MCP server** and REST bridge.
+Autonomous headless-browser + agent orchestration backend: provision agent
+identities (`agk_...` keys), scan targets with a pre-flight recon pass, pull
+OTP codes from real 1SecMail inboxes, and run Playwright signup flows.
 
-## 🔌 MCP Endpoint (redirect)
+Runs **keyless out of the box** — no API keys required for any endpoint.
+Browser automation uses the `playwright` optional dependency when installed;
+without it, `/api/v1/browser/execute` returns an honest placeholder session
+(`simulated: true`) instead of fabricated results.
 
-The AgentOS MCP server lives on the error-inbox deployment:
+## Run it
 
+```bash
+npm install
+node lib/app.js        # PORT env var, default 3000
 ```
-https://error-inbox.vercel.app/api/mcp
-```
 
-Standard **MCP Streamable HTTP** (JSON-RPC 2.0, protocol `2025-03-26`). Per-call auth via the `apiKey` argument — a real `agk_...` agent key, or the universal master code `999` (authenticates as `monico-orchestrator`).
+Deploy on Vercel: `api/[...slug].js` and `api/index.js` both export the same
+Express app (`vercel.json` rewrites `/` and `/health` to it).
 
-Point any MCP client (Claude, Cursor, Monico Agent, etc.) at the URL above.
+## Endpoints
 
-## Tools (15)
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| POST | `/api/v1/agents/signup` | — | Provision an agent identity. Body: `{ handle, objective? }`. Returns `agentId` + one-time `agk_...` key. |
+| POST | `/api/v1/agents/signin` | — | Verify a key. Body: `{ apiKey }`. |
+| GET | `/api/v1/agents` | admin* | List registered agents (handles only, keys never listed). |
+| DELETE | `/api/v1/agents/:agentId` | admin* | Revoke an agent. |
+| POST | `/api/v1/recon/scan` | agent | Pre-flight scan of a target URL: status, WAF detection (Cloudflare/Akamai), CAPTCHA assessment. Body: `{ targetUrl }`. |
+| POST | `/api/v1/browser/execute` | agent | Full flow: provision a real 1SecMail mailbox, drive a headless Chromium signup, poll the inbox for the OTP, submit it, persist the session. Body: `{ targetUrl, selectors? }`. |
+| GET/POST | `/api/v1/settings` | admin* | Poll tuning (`pollIntervalMs`, `pollMaxRetries`, `autoSubmitOtp`, `proxyUrl`, `userAgent`). |
+| GET | `/health` | — | Liveness + counts. |
 
-| Tool | What it does (all REAL, no simulation) |
-|---|---|
-| `agentos_signup` | Create a persistent agent identity — returns `agentId` + one-time `agk_` key |
-| `agentos_signin` | Authenticate with an `agk_` key or master code `999` |
-| `agentos_verify` | Lightweight key validity check |
-| `agentos_platforms` | List which platforms an agent's key can talk to |
-| `agentos_connect_app` | Register a platform so agk_ keys work across it |
-| `agentos_recon` | Live pre-flight scan of a target URL — WAF detection (Cloudflare/Akamai), CAPTCHA assessment, form parsing |
-| `agentos_mailbox` | Provision a **real** Guerrilla Mail inbox |
-| `agentos_poll_otp` | Poll that inbox for OTP/verification codes |
-| `agentos_onboarding` | Full no-browser onboarding: recon → real mailbox → real HTTP form POST → session persisted |
-| `agentos_browser_run` | REAL headless Chromium (serverless) signup run — honest failure on CAPTCHAs, no evasion |
-| `agentos_browser_screenshot` | Navigate + full-page screenshot proof |
-| `agentos_browser_signin` | Sign in to any site with real credentials (handles Google-style two-step flows) |
-| `agentos_browser_signup` | Sign up on any site (caller credentials or auto-provisioned mailbox) |
-| `agentos_sessions` | List persisted automation sessions |
-| `agentos_settings` | Per-agent persistent key/value settings |
+Agent auth: `Authorization: Bearer <agk_...>`.
 
-## Architecture
+\* **Admin endpoints are open by default** (keyless-first). Set `ADMIN_KEY` in
+the environment (see `.env.example`) to require
+`Authorization: Bearer <ADMIN_KEY>` (or `x-admin-key:`) on them.
 
-- **Identity DB of record**: central AgentOS Base44 backend (AgentIdentity, AutomationSession, AgentosSetting entities) — identities survive restarts.
-- **MCP server**: `app/api/mcp/route.ts` on error-inbox (this repo's original Express app was superseded).
-- **REST bridge**: `POST /api/agentos` with `{ action, apiKey }` — actions: signup, signin, verify, connect, platforms, recon, mailbox, poll-otp, onboarding, sessions, settings, browser (`signin`/`signup`), revoke/list/sync-registry (admin, CRON_SECRET, or master key).
-- **Browser runtime**: real serverless Chromium (`playwright-core` + `@sparticuz/chromium-min`).
+## Design notes
 
-## Honest-failure design
-
-Sites that challenge automation (CAPTCHA, Cloudflare interstitials, JS-only challenges) are reported as-is — no solving, no anti-bot evasion, by design. Everything else is real: real mailboxes, real form posts, real sessions, real screenshots.
+- State is in-memory: agent registry and sessions reset on redeploy/restart.
+  Treat this as an ephemeral worker, not a database.
+- Sites that challenge automation (CAPTCHA, Cloudflare interstitials,
+  JS-only challenges) are reported as-is — no solving, no anti-bot evasion,
+  by design. Everything else is real: real mailboxes, real form posts,
+  real sessions.
+- Nothing here requires a third-party API key. 1SecMail's public API is
+  free and keyless; set `ADMIN_KEY` only if you want the admin gate.
 
 ## Deploy
+
 ```bash
 npm install -g vercel
 vercel
