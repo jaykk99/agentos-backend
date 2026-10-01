@@ -26,6 +26,18 @@ env vars and run `supabase/schema.sql` once in that project's SQL editor, so
 the REST API, the action bridge, and the MCP server all see the same agent
 directory. Without those set, identities only live in that instance's memory.
 
+## Owner-level identity (optional)
+
+`lib/identity.js` can resolve a fixed "master-orchestrator" identity for
+`signin`/`verify`/`connect`/`platforms`, meant for error-inbox's own
+orchestrator process to identify itself without signing up like a normal
+agent. This used to be a hardcoded literal (`'999'`) checked directly in
+source and documented here — a skeleton key anyone reading either file could
+use. It is not hardcoded anymore: set `AGENTOS_MASTER_KEY` in the environment
+to a real secret (e.g. `openssl rand -hex 32`) to enable it; comparisons are
+constant-time. Leave it unset and this identity is unreachable by any key —
+there is no default value.
+
 ## REST API
 - `POST /api/v1/agents/signup` - Create agent identity `{ handle, objective? }`
 - `POST /api/v1/agents/signin` - Authenticate agent `{ apiKey }`
