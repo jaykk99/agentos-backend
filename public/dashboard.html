@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentOS Backend — Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #131a26; --panel2: #0f1520; --border: #223047;
+    --text: #e8eef7; --muted: #8fa0b8; --accent: #5eead4; --accent2: #818cf8;
+    --green: #34d399; --red: #f87171; --amber: #fbbf24; --code: #0a0e14;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 28px 32px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: .3px; }
+  header h1 .os { color: var(--accent); }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+    border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--border);
+    background: var(--panel); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  .dot.bad { background: var(--red); }
+  @keyframes pulse { 50% { opacity: .5; } }
+  .ver { color: var(--muted); font-size: 13px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 32px 60px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
+  .card .value { font-size: 26px; font-weight: 700; }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  h2 { font-size: 16px; margin: 28px 0 12px; letter-spacing: .3px; }
+  h2 .n { color: var(--accent2); margin-right: 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; background: var(--panel2); }
+  tr:last-child td { border-bottom: none; }
+  .method { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700; font-family: ui-monospace, monospace; }
+  .m-get { background: #123c2e; color: var(--green); } .m-post { background: #2a2c58; color: #a5b4fc; }
+  .m-del { background: #4a1d1d; color: var(--red); }
+  .auth { font-size: 12px; color: var(--muted); }
+  .auth.req { color: var(--amber); }
+  button { cursor: pointer; }
+  .trybtn { background: transparent; border: 1px solid var(--border); color: var(--accent);
+    border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600; }
+  .trybtn:hover { border-color: var(--accent); }
+  .console { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .console { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel h3 { margin: 0 0 12px; font-size: 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], select, textarea { width: 100%; background: var(--code); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font-size: 13px;
+    font-family: ui-monospace, monospace; }
+  textarea { min-height: 110px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent2); }
+  .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .btn { background: var(--accent2); color: #0b0f17; border: none; border-radius: 8px;
+    padding: 10px 18px; font-weight: 700; font-size: 13px; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  #resp { background: var(--code); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; min-height: 200px; max-height: 480px; overflow: auto; font-size: 12.5px;
+    font-family: ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
+  .statusline { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+  .scode { font-weight: 800; font-family: ui-monospace, monospace; padding: 3px 10px; border-radius: 6px; }
+  .s2 { background: #123c2e; color: var(--green); } .s4 { background: #4a3413; color: var(--amber); }
+  .s5 { background: #4a1d1d; color: var(--red); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .keybox { display: flex; gap: 8px; }
+  .keybox input { flex: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; border-top: 1px solid var(--border); }
+  .k { color: var(--accent); } .s { color: #a5b4fc; } .num { color: var(--amber); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent<span class="os">OS</span> Backend</h1>
+  <span class="pill"><span class="dot" id="healthDot"></span><span id="healthText">checking…</span></span>
+  <span class="ver mono" id="verText"></span>
+  <span class="ver">·</span>
+  <a class="ver" href="/api/status" style="color:var(--accent2)">raw /api/status</a>
+  <a class="ver" href="/" style="color:var(--accent2)">json index</a>
+</header>
+<main>
+  <div class="grid" id="stats"></div>
+
+  <h2><span class="n">01</span>Endpoint explorer</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>What it does</th><th></th></tr></thead>
+    <tbody id="epTable"></tbody>
+  </table>
+
+  <h2><span class="n">02</span>Try-it console</h2>
+  <div class="console">
+    <div class="panel">
+      <h3>Request</h3>
+      <label>Endpoint</label>
+      <select id="epSelect"></select>
+      <div id="bodyWrap">
+        <label>JSON body</label>
+        <textarea id="bodyInput" spellcheck="false">{}</textarea>
+      </div>
+      <label>Agent API key (Bearer agk_…)</label>
+      <div class="keybox">
+        <input type="text" id="agentKey" placeholder="agk_…" spellcheck="false">
+        <button class="btn ghost" id="signupBtn" title="Provision a new agent identity">+ signup</button>
+      </div>
+      <label>Admin key (only if ADMIN_KEY is set on the server)</label>
+      <input type="text" id="adminKey" placeholder="optional" spellcheck="false">
+      <div class="row">
+        <button class="btn" id="sendBtn">Send request</button>
+        <button class="btn ghost" id="clearKeys">Clear saved keys</button>
+      </div>
+      <div class="hint">
+        Keys are stored only in this browser's localStorage. The <b>+ signup</b> button
+        provisions a real agent identity via <span class="mono">POST /api/v1/agents/signup</span>
+        and fills the key field automatically.
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Response</h3>
+      <div class="statusline" id="statusLine" style="display:none">
+        <span class="scode" id="scode"></span>
+        <span class="mono" id="reqId" style="color:var(--muted)"></span>
+        <span style="color:var(--muted)" id="elapsed"></span>
+      </div>
+      <div id="resp">// responses appear here</div>
+    </div>
+  </div>
+</main>
+<footer>AgentOS Backend · keyless-first · state is in-memory (resets on restart)</footer>
+
+<script>
+const ENDPOINTS = [
+  { m: 'POST',   path: '/api/v1/agents/signup',   auth: 'none',  desc: 'Provision an agent identity → returns one-time agk_… key', body: { handle: 'demo-agent', objective: 'Testing the dashboard' } },
+  { m: 'POST',   path: '/api/v1/agents/signin',   auth: 'none',  desc: 'Verify an API key', body: { apiKey: '<paste agk_… key>' } },
+  { m: 'GET',    path: '/api/v1/agents',          auth: 'admin', desc: 'List registered agents (handles only)', body: null },
+  { m: 'DELETE', path: '/api/v1/agents/agent_<id>', auth: 'admin', desc: 'Revoke an agent by ID', body: null },
+  { m: 'POST',   path: '/api/v1/recon/scan',      auth: 'agent', desc: 'Pre-flight scan of a target URL (WAF/CAPTCHA detection)', body: { targetUrl: 'https://example.com' } },
+  { m: 'POST',   path: '/api/v1/browser/execute', auth: 'agent', desc: '1SecMail mailbox + Playwright signup + OTP ingestion', body: { targetUrl: 'https://example.com/signup' } },
+  { m: 'GET',    path: '/api/v1/settings',        auth: 'admin', desc: 'Poll tuning settings', body: null },
+  { m: 'POST',   path: '/api/v1/settings',        auth: 'admin', desc: 'Update poll tuning settings', body: { pollIntervalMs: 5000, pollMaxRetries: 10 } },
+  { m: 'GET',    path: '/api/status',             auth: 'none',  desc: 'Honest capability report (browser? admin gate? limits?)', body: null },
+  { m: 'GET',    path: '/health',                 auth: 'none',  desc: 'Liveness + counts', body: null },
+];
+
+const $ = id => document.getElementById(id);
+const epTable = $('epTable'), epSelect = $('epSelect');
+
+ENDPOINTS.forEach((e, i) => {
+  const tr = document.createElement('tr');
+  const mc = e.m === 'GET' ? 'm-get' : e.m === 'POST' ? 'm-post' : 'm-del';
+  tr.innerHTML = `<td><span class="method ${mc}">${e.m}</span></td>
+    <td class="mono">${e.path}</td>
+    <td class="auth ${e.auth === 'none' ? '' : 'req'}">${e.auth === 'none' ? '—' : e.auth}</td>
+    <td>${e.desc}</td>
+    <td><button class="trybtn" data-i="${i}">Try →</button></td>`;
+  epTable.appendChild(tr);
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = `${e.m} ${e.path}`;
+  epSelect.appendChild(opt);
+});
+epTable.addEventListener('click', ev => {
+  const b = ev.target.closest('button.trybtn');
+  if (!b) return;
+  epSelect.value = b.dataset.i;
+  loadBody();
+  document.querySelector('.console').scrollIntoView({ behavior: 'smooth' });
+});
+
+function loadBody() {
+  const e = ENDPOINTS[+epSelect.value];
+  $('bodyWrap').style.display = e.m === 'GET' || e.m === 'DELETE' ? 'none' : 'block';
+  $('bodyInput').value = e.body ? JSON.stringify(e.body, null, 2) : '{}';
+}
+epSelect.addEventListener('change', loadBody);
+loadBody();
+
+// persisted keys
+$('agentKey').value = localStorage.getItem('agentos_agent_key') || '';
+$('adminKey').value = localStorage.getItem('agentos_admin_key') || '';
+$('agentKey').addEventListener('input', e => localStorage.setItem('agentos_agent_key', e.target.value.trim()));
+$('adminKey').addEventListener('input', e => localStorage.setItem('agentos_admin_key', e.target.value.trim()));
+$('clearKeys').addEventListener('click', () => {
+  localStorage.removeItem('agentos_agent_key'); localStorage.removeItem('agentos_admin_key');
+  $('agentKey').value = ''; $('adminKey').value = '';
+});
+
+function syntaxJson(obj) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let json = esc(JSON.stringify(obj, null, 2));
+  return json.replace(/(&quot;([^&]|&(?!quot;))*?&quot;)(\s*:)?/g, (m, str, _k, colon) =>
+      colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`)
+    .replace(/\b(true|false|null)\b/g, '<span class="num">$1</span>')
+    .replace(/(^|[\s\[,:])(-?\d+\.?\d*)/g, '$1<span class="num">$2</span>');
+}
+
+async function send() {
+  const e = ENDPOINTS[+epSelect.value];
+  let path = e.path;
+  if (e.m === 'DELETE' && path.includes('<id>')) {
+    const id = prompt('Agent ID to revoke (agent_…):', '');
+    if (!id) return;
+    path = path.replace('agent_<id>', id.trim());
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (e.auth === 'agent' && $('agentKey').value.trim()) headers['Authorization'] = 'Bearer ' + $('agentKey').value.trim();
+  if (e.auth === 'admin' && $('adminKey').value.trim()) headers['Authorization'] = 'Bearer ' + $('adminKey').value.trim();
+  let body;
+  if (e.m !== 'GET' && e.m !== 'DELETE') {
+    let raw = $('bodyInput').value;
+    if (e.path.endsWith('/signin') && $('agentKey').value.trim()) {
+      try { const j = JSON.parse(raw); j.apiKey = $('agentKey').value.trim(); raw = JSON.stringify(j); } catch {}
+    }
+    try { body = raw; JSON.parse(raw); }
+    catch { $('resp').textContent = 'Body is not valid JSON.'; return; }
+  }
+  const t0 = performance.now();
+  $('sendBtn').disabled = true;
+  try {
+    const res = await fetch(path, { method: e.m, headers, body });
+    const ms = Math.round(performance.now() - t0);
+    const text = await res.text();
+    let data; try { data = JSON.parse(text); } catch { data = text; }
+    const sl = $('statusLine'); sl.style.display = 'flex';
+    const sc = $('scode'); sc.textContent = res.status;
+    sc.className = 'scode ' + (res.status < 300 ? 's2' : res.status < 500 ? 's4' : 's5');
+    $('reqId').textContent = 'req ' + (res.headers.get('X-Request-Id') || '—');
+    $('elapsed').textContent = ms + ' ms';
+    $('resp').innerHTML = typeof data === 'string' ? data.replace(/</g, '&lt;') : syntaxJson(data);
+  } catch (err) {
+    $('resp').textContent = 'Request failed: ' + err.message;
+  } finally { $('sendBtn').disabled = false; }
+}
+$('sendBtn').addEventListener('click', send);
+
+$('signupBtn').addEventListener('click', async () => {
+  const handle = prompt('Handle for the new agent:', 'dashboard-agent');
+  if (!handle) return;
+  try {
+    const res = await fetch('/api/v1/agents/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle })
+    });
+    const data = await res.json();
+    if (res.ok && data.agent?.apiKey) {
+      $('agentKey').value = data.agent.apiKey;
+      localStorage.setItem('agentos_agent_key', data.agent.apiKey);
+      $('resp').innerHTML = syntaxJson(data);
+      const sl = $('statusLine'); sl.style.display = 'flex';
+      $('scode').textContent = res.status; $('scode').className = 'scode s2';
+      $('reqId').textContent = 'req ' + (res.headers.get('X-Request-Id') || '—');
+    } else {
+      $('resp').innerHTML = syntaxJson(data);
+    }
+  } catch (err) { $('resp').textContent = 'Signup failed: ' + err.message; }
+});
+
+// live stats
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
+}
+async function refresh() {
+  try {
+    const [h, s] = await Promise.all([
+      fetch('/api/health').then(r => r.json()),
+      fetch('/api/status').then(r => r.json()),
+    ]);
+    $('healthDot').className = 'dot ok';
+    $('healthText').textContent = 'healthy';
+    $('verText').textContent = 'v' + (h.version || '?');
+    const caps = s.capabilities || {}, sec = s.security || {}, counts = s.counts || {}, mem = s.memory || {};
+    $('stats').innerHTML = `
+      <div class="card"><div class="label">Agents</div><div class="value">${counts.agents ?? '—'}</div><div class="sub">max ${counts.maxAgents ?? '—'} · TTL ${sec.agentKeyTtlDays ?? '—'}d</div></div>
+      <div class="card"><div class="label">Sessions</div><div class="value">${counts.sessions ?? '—'}</div><div class="sub">browser executions</div></div>
+      <div class="card"><div class="label">Uptime</div><div class="value" style="font-size:20px">${fmtUptime(s.uptimeSeconds || 0)}</div><div class="sub">since boot</div></div>
+      <div class="card"><div class="label">Real browser</div><div class="value" style="font-size:20px">${caps.realBrowserAutomation ? '✅ yes' : '⚠️ simulated'}</div><div class="sub">module ${caps.playwrightModule ? 'yes' : 'no'} · binary ${caps.browserBinaryDownloaded ? 'yes' : 'no'}</div></div>
+      <div class="card"><div class="label">Admin gate</div><div class="value" style="font-size:20px">${sec.adminGateConfigured ? '🔒 keyed' : '🔓 open'}</div><div class="sub">${sec.adminGateConfigured ? 'ADMIN_KEY required' : 'keyless-first: set ADMIN_KEY'}</div></div>
+      <div class="card"><div class="label">Memory</div><div class="value" style="font-size:20px">${mem.heapUsedMB ?? '—'} MB</div><div class="sub">heap · RSS ${mem.rssMB ?? '—'} MB</div></div>`;
+  } catch {
+    $('healthDot').className = 'dot bad';
+    $('healthText').textContent = 'unreachable';
+  }
+}
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

@@ -1,12 +1,1 @@
-{
-  "rewrites": [
-    {
-      "destination": "/api/health",
-      "source": "/health"
-    },
-    {
-      "destination": "/api",
-      "source": "/"
-    }
-  ]
-}
+{"rewrites":[{"destination":"/api/health","source":"/health"},{"destination":"/api/dashboard","source":"/dashboard"},{"destination":"/api","source":"/"}]}
