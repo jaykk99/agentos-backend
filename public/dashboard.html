@@ -95,7 +95,13 @@
     <tbody id="epTable"></tbody>
   </table>
 
-  <h2><span class="n">02</span>Try-it console</h2>
+  <h2><span class="n">03</span>Recent issues</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Level</th><th>Event</th></tr></thead>
+    <tbody id="issuesTable"><tr><td colspan="3" style="color:var(--muted)">loading…</td></tr></tbody>
+  </table>
+
+  <h2><span class="n">04</span>Try-it console</h2>
   <div class="console">
     <div class="panel">
       <h3>Request</h3>
@@ -140,7 +146,9 @@ const ENDPOINTS = [
   { m: 'POST',   path: '/api/v1/agents/signup',   auth: 'none',  desc: 'Provision an agent identity → returns one-time agk_… key', body: { handle: 'demo-agent', objective: 'Testing the dashboard' } },
   { m: 'POST',   path: '/api/v1/agents/signin',   auth: 'none',  desc: 'Verify an API key', body: { apiKey: '<paste agk_… key>' } },
   { m: 'GET',    path: '/api/v1/agents',          auth: 'admin', desc: 'List registered agents (handles only)', body: null },
-  { m: 'DELETE', path: '/api/v1/agents/agent_<id>', auth: 'admin', desc: 'Revoke an agent by ID', body: null },
+  { m: 'DELETE', path: '/api/v1/agents/agent_<id>', auth: 'admin', desc: 'Revoke an agent by ID (also revokes its sessions)', body: null },
+  { m: 'GET',    path: '/api/v1/sessions',        auth: 'admin', desc: 'List browser sessions (metadata only, no secrets)', body: null },
+  { m: 'DELETE', path: '/api/v1/sessions/sess_<id>', auth: 'admin', desc: 'Revoke one browser session', body: null },
   { m: 'POST',   path: '/api/v1/recon/scan',      auth: 'agent', desc: 'Pre-flight scan of a target URL (WAF/CAPTCHA detection)', body: { targetUrl: 'https://example.com' } },
   { m: 'POST',   path: '/api/v1/browser/execute', auth: 'agent', desc: '1SecMail mailbox + Playwright signup + OTP ingestion', body: { targetUrl: 'https://example.com/signup' } },
   { m: 'GET',    path: '/api/v1/settings',        auth: 'admin', desc: 'Poll tuning settings', body: null },
@@ -204,9 +212,10 @@ async function send() {
   const e = ENDPOINTS[+epSelect.value];
   let path = e.path;
   if (e.m === 'DELETE' && path.includes('<id>')) {
-    const id = prompt('Agent ID to revoke (agent_…):', '');
+    const isSession = path.includes('sess_<id>');
+    const id = prompt(isSession ? 'Session ID to revoke (sess_…):' : 'Agent ID to revoke (agent_…):', '');
     if (!id) return;
-    path = path.replace('agent_<id>', id.trim());
+    path = isSession ? path.replace('sess_<id>', id.trim()) : path.replace('agent_<id>', id.trim());
   }
   const headers = { 'Content-Type': 'application/json' };
   if (e.auth === 'agent' && $('agentKey').value.trim()) headers['Authorization'] = 'Bearer ' + $('agentKey').value.trim();
@@ -278,11 +287,17 @@ async function refresh() {
     const caps = s.capabilities || {}, sec = s.security || {}, counts = s.counts || {}, mem = s.memory || {};
     $('stats').innerHTML = `
       <div class="card"><div class="label">Agents</div><div class="value">${counts.agents ?? '—'}</div><div class="sub">max ${counts.maxAgents ?? '—'} · TTL ${sec.agentKeyTtlDays ?? '—'}d</div></div>
-      <div class="card"><div class="label">Sessions</div><div class="value">${counts.sessions ?? '—'}</div><div class="sub">browser executions</div></div>
+      <div class="card"><div class="label">Sessions</div><div class="value">${counts.sessions ?? '—'}</div><div class="sub">max ${counts.maxSessions ?? '—'} · TTL ${counts.sessionTtlHours ?? '—'}h</div></div>
       <div class="card"><div class="label">Uptime</div><div class="value" style="font-size:20px">${fmtUptime(s.uptimeSeconds || 0)}</div><div class="sub">since boot</div></div>
       <div class="card"><div class="label">Real browser</div><div class="value" style="font-size:20px">${caps.realBrowserAutomation ? '✅ yes' : '⚠️ simulated'}</div><div class="sub">module ${caps.playwrightModule ? 'yes' : 'no'} · binary ${caps.browserBinaryDownloaded ? 'yes' : 'no'}</div></div>
       <div class="card"><div class="label">Admin gate</div><div class="value" style="font-size:20px">${sec.adminGateConfigured ? '🔒 keyed' : '🔓 open'}</div><div class="sub">${sec.adminGateConfigured ? 'ADMIN_KEY required' : 'keyless-first: set ADMIN_KEY'}</div></div>
       <div class="card"><div class="label">Memory</div><div class="value" style="font-size:20px">${mem.heapUsedMB ?? '—'} MB</div><div class="sub">heap · RSS ${mem.rssMB ?? '—'} MB</div></div>`;
+    const issues = s.recentIssues || [];
+    $('issuesTable').innerHTML = issues.length
+      ? issues.map(e => `<tr><td class="mono" style="white-space:nowrap">${e.ts || '—'}</td>
+          <td><span class="method ${e.level === 'error' ? 'm-del' : 'm-post'}">${e.level || '—'}</span></td>
+          <td class="mono">${e.msg || '—'}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="color:var(--muted)">no warnings or errors recorded</td></tr>';
   } catch {
     $('healthDot').className = 'dot bad';
     $('healthText').textContent = 'unreachable';

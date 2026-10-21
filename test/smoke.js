@@ -75,7 +75,7 @@ async function main() {
     const srvA = await startServer(A);
 
     let r = await req(A, 'GET', '/api/health');
-    check('GET /api/health -> 200 healthy', r.status === 200 && r.json.status === 'healthy' && r.json.version === '1.1.0', `got ${r.status}`);
+    check('GET /api/health -> 200 healthy', r.status === 200 && r.json.status === 'healthy' && r.json.version === '1.2.0', `got ${r.status}`);
 
     r = await req(A, 'GET', '/api/status');
     check('GET /api/status -> 200 with honest capabilities',
@@ -192,6 +192,61 @@ async function main() {
     r = await req(D, 'POST', '/api/v1/agents/signin', { body: { apiKey: shortKey } });
     check('signin with expired key -> 401 expired', r.status === 401 && /expired/i.test(r.json.message), `got ${r.status} ${r.text.slice(0, 100)}`);
     await stopServer(srvD);
+
+    console.log('== server E: sessions lifecycle + SSRF hardening ==');
+    const E = 3105;
+    const srvE = await startServer(E, { MAX_SESSIONS: '2' });
+
+    r = await req(E, 'POST', '/api/v1/agents/signup', { body: { handle: 'sess-agent' } });
+    const ekey = r.json.agent.apiKey;
+    const eAgentId = r.json.agent.agentId;
+    const eAuth = { Authorization: `Bearer ${ekey}` };
+
+    r = await req(E, 'POST', '/api/v1/recon/scan', { body: { targetUrl: 'http://100.64.0.5/' }, headers: eAuth });
+    check('POST recon CGNAT 100.64.0.0/10 blocked -> 400', r.status === 400 && errorShape(r), `got ${r.status} ${r.text.slice(0, 80)}`);
+    r = await req(E, 'POST', '/api/v1/recon/scan', { body: { targetUrl: 'http://[::ffff:127.0.0.1]/' }, headers: eAuth });
+    check('POST recon IPv4-mapped ::ffff:127.0.0.1 blocked -> 400', r.status === 400 && errorShape(r), `got ${r.status} ${r.text.slice(0, 80)}`);
+    r = await req(E, 'POST', '/api/v1/recon/scan', { body: { targetUrl: 'http://[fe90::1]/' }, headers: eAuth });
+    check('POST recon link-local fe90::/10 blocked -> 400', r.status === 400 && errorShape(r), `got ${r.status} ${r.text.slice(0, 80)}`);
+
+    r = await req(E, 'POST', '/api/v1/agents/signin', { body: { apiKey: ekey } });
+    check('POST signin returns lastUsedAt', r.status === 200 && typeof r.json.agent.lastUsedAt === 'string', `got ${r.status}`);
+    r = await req(E, 'GET', '/api/v1/agents');
+    check('GET /agents list includes lastUsedAt', r.status === 200 && r.json.agents.every(a => typeof a.lastUsedAt === 'string'), `got ${r.status}`);
+
+    // 203.0.113.10 is TEST-NET-3: a public-range literal that passes SSRF
+    // validation without needing DNS (this sandbox has no outbound network).
+    r = await req(E, 'POST', '/api/v1/browser/execute', { body: { targetUrl: 'http://203.0.113.10/signup' }, headers: eAuth });
+    const sessId = r.json && r.json.session && r.json.session.sessionId;
+    check('POST browser/execute simulated -> 200 persisted session', r.status === 200 && !!sessId && r.json.session.simulated === true && r.json.session.persisted === true, `got ${r.status}`);
+
+    r = await req(E, 'GET', '/api/v1/sessions');
+    const s0 = r.json && r.json.sessions && r.json.sessions[0];
+    check('GET /sessions metadata only (no secrets)',
+        r.status === 200 && r.json.count === 1 && s0.sessionId === sessId &&
+        !('cookies' in s0) && !('otpResult' in s0) && !('generatedPassword' in s0) &&
+        typeof s0.cookiesExtracted === 'number' && typeof s0.otpReceived === 'boolean',
+        `got ${r.status} ${r.text.slice(0, 120)}`);
+
+    r = await req(E, 'DELETE', '/api/v1/sessions/sess_zzzzzzzzzzzzzzzz');
+    check('DELETE malformed session id -> 400', r.status === 400 && errorShape(r), `got ${r.status}`);
+    r = await req(E, 'DELETE', `/api/v1/sessions/${sessId}`);
+    check('DELETE session -> 200 revoked', r.status === 200 && r.json.status === 'success', `got ${r.status}`);
+    r = await req(E, 'DELETE', `/api/v1/sessions/${sessId}`);
+    check('DELETE session twice -> 404', r.status === 404 && errorShape(r), `got ${r.status}`);
+
+    // Session cap: MAX_SESSIONS=2 on this server — the oldest is evicted.
+    for (let i = 0; i < 3; i++) {
+        await req(E, 'POST', '/api/v1/browser/execute', { body: { targetUrl: 'http://203.0.113.10/x' }, headers: eAuth });
+    }
+    r = await req(E, 'GET', '/api/v1/sessions');
+    check('session cap evicts oldest (MAX_SESSIONS=2)', r.status === 200 && r.json.count === 2, `got count=${r.json && r.json.count}`);
+
+    r = await req(E, 'DELETE', `/api/v1/agents/${eAgentId}`);
+    check('DELETE agent revokes its sessions', r.status === 200 && r.json.sessionsRevoked >= 1, `got ${r.status} ${r.text.slice(0, 100)}`);
+    r = await req(E, 'GET', '/api/v1/sessions');
+    check('GET /sessions empty after agent revoke', r.status === 200 && r.json.count === 0, `got count=${r.json && r.json.count}`);
+    await stopServer(srvE);
 
     console.log(`\n${passes} passed, ${failures} failed`);
     process.exit(failures ? 1 : 0);

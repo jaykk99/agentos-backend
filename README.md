@@ -30,9 +30,11 @@ Express app (`vercel.json` rewrites `/`, `/health`, and `/dashboard` to it).
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | POST | `/api/v1/agents/signup` | — (rate-limited) | Provision an agent identity. Body: `{ handle, objective? }`. Returns `agentId` + one-time `agk_...` key + `expiresAt`. |
-| POST | `/api/v1/agents/signin` | — (rate-limited) | Verify a key. Body: `{ apiKey }`. |
-| GET | `/api/v1/agents` | admin* | List registered agents (handles only, keys never listed). |
-| DELETE | `/api/v1/agents/:agentId` | admin* | Revoke an agent. |
+| POST | `/api/v1/agents/signin` | — (rate-limited) | Verify a key. Body: `{ apiKey }`. Returns the agent summary including `lastUsedAt`. |
+| GET | `/api/v1/agents` | admin* | List registered agents (handles only, keys never listed) with `lastUsedAt`. |
+| DELETE | `/api/v1/agents/:agentId` | admin* | Revoke an agent and its browser sessions. |
+| GET | `/api/v1/sessions` | admin* | List browser-execution sessions (metadata only: no cookies, OTP codes, or passwords). |
+| DELETE | `/api/v1/sessions/:sessionId` | admin* | Revoke one browser session. |
 | POST | `/api/v1/recon/scan` | agent | Pre-flight scan of a target URL: status, WAF detection (Cloudflare/Akamai), CAPTCHA assessment. Body: `{ targetUrl }`. SSRF-guarded (no private/loopback targets). |
 | POST | `/api/v1/browser/execute` | agent | Full flow: provision a real 1SecMail mailbox, drive a headless Chromium signup, poll the inbox for the OTP, submit it, persist the session. Body: `{ targetUrl, selectors? }`. |
 | GET/POST | `/api/v1/settings` | admin* | Poll tuning (`pollIntervalMs`, `pollMaxRetries`, `autoSubmitOtp`, `proxyUrl`, `userAgent`) — all range/type validated. |
@@ -67,7 +69,11 @@ The comparison is constant-time.
 ## Design notes
 
 - State is in-memory: agent registry and sessions reset on redeploy/restart.
-  Treat this as an ephemeral worker, not a database.
+  Treat this as an ephemeral worker, not a database. Sessions are TTL-pruned
+  (`SESSION_TTL_HOURS`, default 24) and capped (`MAX_SESSIONS`, default 1000,
+  oldest-first eviction). Deleting an agent revokes its sessions.
+- The `/api/v1/sessions` admin listing is metadata only: it never returns
+  cookies, OTP codes, or generated passwords.
 - Sites that challenge automation (CAPTCHA, Cloudflare interstitials,
   JS-only challenges) are reported as-is — no solving, no anti-bot evasion,
   by design. Everything else is real: real mailboxes, real form posts,
