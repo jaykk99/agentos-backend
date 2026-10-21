@@ -208,6 +208,10 @@ async function main() {
     check('POST recon IPv4-mapped ::ffff:127.0.0.1 blocked -> 400', r.status === 400 && errorShape(r), `got ${r.status} ${r.text.slice(0, 80)}`);
     r = await req(E, 'POST', '/api/v1/recon/scan', { body: { targetUrl: 'http://[fe90::1]/' }, headers: eAuth });
     check('POST recon link-local fe90::/10 blocked -> 400', r.status === 400 && errorShape(r), `got ${r.status} ${r.text.slice(0, 80)}`);
+    r = await req(E, 'POST', '/api/v1/recon/scan', { body: { targetUrl: 'http://203.0.113.10/' }, headers: eAuth });
+    check('POST recon public literal -> 200 with measured fetchMs',
+        r.status === 200 && r.json.recon && typeof r.json.recon.fetchMs === 'number' && r.json.recon.fetchMs >= 0,
+        `got ${r.status} ${r.text.slice(0, 120)}`);
 
     r = await req(E, 'POST', '/api/v1/agents/signin', { body: { apiKey: ekey } });
     check('POST signin returns lastUsedAt', r.status === 200 && typeof r.json.agent.lastUsedAt === 'string', `got ${r.status}`);
