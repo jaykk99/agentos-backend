@@ -57,8 +57,12 @@ The comparison is constant-time.
 - **Agent keys expire**: `AGENT_KEY_TTL_DAYS` (default 90). Expired keys get
   401 and are pruned. Registry is capped at `MAX_AGENTS` (default 10000).
 - **SSRF guard**: `targetUrl` must be http/https, ≤2048 chars, not a
-  private/loopback literal IP, and must not DNS-resolve to one. Recon fetches
-  time out after `RECON_TIMEOUT_MS` (default 10s).
+  private/loopback literal IP, and must not DNS-resolve to one. Recon
+  redirects are followed manually and each destination is revalidated
+  **before** any follow-up request (five-hop cap). Recon fetches time out
+  after `RECON_TIMEOUT_MS` (default 10s). This is defense in depth:
+  production must additionally block private-network egress to mitigate
+  DNS rebinding between validation and connection.
 - **Validation**: handles 1–64 chars, objectives ≤280 chars, settings fields
   range-checked, JSON bodies capped at 100kb (413 beyond).
 - **Errors are structured** — `{ status: "error", error, message, requestId }` —
