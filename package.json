@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node api/index.js",
     "dev": "node api/index.js",
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node --test test/recon-redirect.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
